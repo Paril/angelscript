@@ -1,6 +1,6 @@
 /*
    AngelCode Scripting Library
-   Copyright (c) 2003-2024 Andreas Jonsson
+   Copyright (c) 2003-2025 Andreas Jonsson
 
    This software is provided 'as-is', without any express or implied 
    warranty. In no event will the authors be held liable for any 
@@ -149,20 +149,6 @@ bool asCTokenizer::IsDigitInRadix(char ch, int radix) const
 	return false;
 }
 
-// [Paril: number separators
-bool asCTokenizer::IsValidSeparatorDigitInRadix(const char *source, size_t sourceLength, size_t n, int radix) const
-{
-	if( source[n] != '\'' )
-		return false;
-	if( (n + 1) >= sourceLength || n == 0 )
-		return false;
-	else if ( !IsDigitInRadix(source[n + 1], radix) || !IsDigitInRadix(source[n - 1], radix) )
-		return false;
-
-	return true;
-}
-// Paril: number separators]
-
 eTokenType asCTokenizer::GetToken(const char *source, size_t sourceLength, size_t *tokenLength, asETokenClass *tc) const
 {
 	asASSERT(source != 0);
@@ -281,6 +267,18 @@ bool asCTokenizer::IsComment(const char *source, size_t sourceLength, size_t &to
 	return false;
 }
 
+bool asCTokenizer::IsValidSeparatorDigitInRadix(const char* source, size_t sourceLength, size_t n, int radix) const
+{
+	if (source[n] != '\'')
+		return false;
+	if ((n + 1) >= sourceLength || n == 0)
+		return false;
+	else if (!IsDigitInRadix(source[n + 1], radix) || !IsDigitInRadix(source[n - 1], radix))
+		return false;
+
+	return true;
+}
+
 bool asCTokenizer::IsConstant(const char *source, size_t sourceLength, size_t &tokenLength, eTokenType &tokenType) const
 {
 	// Starting with number
@@ -303,9 +301,7 @@ bool asCTokenizer::IsConstant(const char *source, size_t sourceLength, size_t &t
 			{
 				size_t n;
 				for( n = 2; n < sourceLength; n++ )
-					// [Paril: number separators
 					if( !IsDigitInRadix(source[n], radix) && !IsValidSeparatorDigitInRadix(source, sourceLength, n, radix) )
-					// Paril: number separators]
 						break;
 
 				tokenType   = ttBitsConstant;
@@ -317,9 +313,7 @@ bool asCTokenizer::IsConstant(const char *source, size_t sourceLength, size_t &t
 		size_t n;
 		for( n = 0; n < sourceLength; n++ )
 		{
-			// [Paril: number separators
 			if( (source[n] < '0' || source[n] > '9') && !IsValidSeparatorDigitInRadix(source, sourceLength, n, 10) )
-			// Paril: number separators]
 				break;
 		}
 
@@ -330,9 +324,7 @@ bool asCTokenizer::IsConstant(const char *source, size_t sourceLength, size_t &t
 				n++;
 				for( ; n < sourceLength; n++ )
 				{
-					// [Paril: number separators
 					if( (source[n] < '0' || source[n] > '9') && !IsValidSeparatorDigitInRadix(source, sourceLength, n, 10) )
-					// Paril: number separators]
 						break;
 				}
 			}
@@ -345,9 +337,7 @@ bool asCTokenizer::IsConstant(const char *source, size_t sourceLength, size_t &t
 
 				for( ; n < sourceLength; n++ )
 				{
-					// [Paril: number separators
 					if( (source[n] < '0' || source[n] > '9') && !IsValidSeparatorDigitInRadix(source, sourceLength, n, 10) )
-					// Paril: number separators]
 						break;
 				}
 			}

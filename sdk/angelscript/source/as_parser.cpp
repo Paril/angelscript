@@ -1718,13 +1718,13 @@ asCScriptNode *asCParser::ParseExprValue()
 	return node;
 }
 
-// [Paril: support number literals
 // BNF:12: LITERAL       ::= NUMBER | STRING | BITS | 'true' | 'false' | 'null'
 // BNF:17: DIGIT         ::= #'[0-9](\'(?=[0-9]))?'             // single token:  like C++14, a digit can contain a ' if a digit comes after it
+// TODO: literal: The expression for DIGIT looks a bit odd to me, need to verify it
 // BNF:17: NUMBER        ::= DIGIT+("."DIGIT+)?                 // single token:  includes integers and real numbers, same as C++
 // BNF:17: STRING        ::= '"' ("\". | [^"#x0D#x0A\\])* '"'   // single token:  single quoted ', double quoted ", or heredoc multi-line string """
 // BNF:17: BITS          ::= '0'[bBoOdDxX][0-9A-Fa-f]+          // single token:  binary 0b or 0B, octal 0o or 0O, decimal 0d or 0D, hexadecimal 0x or 0X
-// Paril: support number literals]
+// TODO: literal: BNF for BITS also needs to be adjusted to accept separators. NUMBER must be adjusted to accept the exponent after 'e' or 'E'
 asCScriptNode *asCParser::ParseConstant()
 {
 	asCScriptNode *node = CreateNode(snConstant);
