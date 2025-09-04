@@ -579,8 +579,16 @@ bool asCDataType::IsIntegerType() const
 		tokenType == ttInt64 )
 		return true;
 
-	// Enums are also integer types
-	return IsEnumType();
+	// [Paril: typed enums
+	// Enums can also be integer types
+	if (IsEnumType())
+	{
+		asCEnumType *enumType = CastToEnumType(typeInfo);
+		return enumType->enumType.IsIntegerType();
+	}
+
+	return false;
+	// Paril: typed enums]
 }
 
 bool asCDataType::IsUnsignedType() const
@@ -590,6 +598,15 @@ bool asCDataType::IsUnsignedType() const
 		tokenType == ttUInt16 ||
 		tokenType == ttUInt64 )
 		return true;
+
+	// [Paril: typed enums
+	// Enums can also be unsigned integer types
+	if (IsEnumType())
+	{
+		asCEnumType *enumType = CastToEnumType(typeInfo);
+		return enumType->enumType.IsUnsignedType();
+	}
+	// Paril: typed enums]
 
 	return false;
 }

@@ -1512,6 +1512,11 @@ int asCScriptFunction::GetReturnTypeId(asDWORD *flags) const
 		}
 		else
 			*flags = asTM_NONE;
+
+		// [Paril: debugging
+		if( returnType.HasIfHandleThenConst() )
+			*flags |= asTM_IF_HANDLE_THEN_CONST;
+		// Paril: debugging]
 	}
 
 	return engine->GetTypeIdFromDataType(returnType);
@@ -1536,6 +1541,9 @@ int asCScriptFunction::GetParam(asUINT index, int *out_typeId, asDWORD *out_flag
 	{
 		*out_flags = inOutFlags[index];
 		*out_flags |= parameterTypes[index].IsReadOnly() ? asTM_CONST : 0;
+		// [Paril: debugging
+		*out_flags |= parameterTypes[index].HasIfHandleThenConst() ? asTM_IF_HANDLE_THEN_CONST : 0;
+		// Paril: debugging]
 	}
 
 	if( out_name )
@@ -1868,6 +1876,14 @@ bool asCScriptFunction::IsVariadic() const
 {
 	return traits.GetTrait(asTRAIT_VARIADIC);
 }
+
+// [Paril: basic nodiscard
+// interface
+bool asCScriptFunction::IsNoDiscard() const
+{
+	return traits.GetTrait(asTRAIT_NODISCARD);
+}
+// Paril: basic nodiscard]
 
 // internal
 bool asCScriptFunction::IsFactory() const

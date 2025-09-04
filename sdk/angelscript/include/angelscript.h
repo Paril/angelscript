@@ -59,7 +59,7 @@ BEGIN_AS_NAMESPACE
 // AngelScript version
 
 #define ANGELSCRIPT_VERSION        23900
-#define ANGELSCRIPT_VERSION_STRING "2.39.0 WIP"
+#define ANGELSCRIPT_VERSION_STRING "2.39.0 WIP [Paril]"
 
 // Data types
 
@@ -368,6 +368,9 @@ enum asETypeModifiers
 	asTM_OUTREF   = 2,
 	asTM_INOUTREF = 3,
 	asTM_CONST    = 4
+	// [Paril: debugging
+	, asTM_IF_HANDLE_THEN_CONST = 8
+	// Paril: debugging]
 };
 
 // GetModule flags
@@ -532,6 +535,22 @@ struct asSMessageInfo
 	const char *message;
 };
 
+// [Paril: more callbacks
+struct asSFunctionInfo
+{
+    asIScriptFunction  *function;
+    asIScriptContext   *context;
+    bool               popped;
+};
+
+struct asSGarbageCollectionInfo
+{
+    asIScriptEngine    *engine;
+    bool               popped;
+    asDWORD            flags;
+    asUINT             numIterations;
+};
+// Paril: more callbacks]
 
 // API functions
 
@@ -721,8 +740,10 @@ public:
 	virtual int GetDefaultArrayTypeId() const = 0;
 
 	// Enums
-	virtual int          RegisterEnum(const char *type) = 0;
-	virtual int          RegisterEnumValue(const char *type, const char *name, int value) = 0;
+	// [Paril: typed enums
+	virtual int          RegisterEnum(const char *typeName, const char *underlyingType = "int32") = 0;
+	virtual int          RegisterEnumValue(const char *type, const char *name, asINT64 value) = 0;
+	// Paril: typed enums]
 	virtual asUINT       GetEnumCount() const = 0;
 	virtual asITypeInfo *GetEnumByIndex(asUINT index) const = 0;
 
@@ -791,6 +812,11 @@ public:
 	virtual void ForwardGCEnumReferences(void *ref, asITypeInfo *type) = 0;
 	virtual void ForwardGCReleaseReferences(void *ref, asITypeInfo *type) = 0;
 	virtual void SetCircularRefDetectedCallback(asCIRCULARREFFUNC_t callback, void *param = 0) = 0;
+	// [Paril: more callbacks
+	virtual int SetGarbageCollectionCallback(const asSFuncPtr &callback, void *obj, asDWORD callConv) = 0;
+	virtual int ClearGarbageCollectionCallback() = 0;
+    virtual void CallGarbageCollectorCallback(asDWORD flags, asUINT numIterations, bool pop) = 0;
+    // Paril: more callbacks]
 
 	// User data
 	virtual void *SetUserData(void *data, asPWORD type = 0) = 0;
@@ -956,6 +982,10 @@ public:
 	// Debugging
 	virtual int                SetLineCallback(const asSFuncPtr &callback, void *obj, int callConv) = 0;
 	virtual void               ClearLineCallback() = 0;
+	// [Paril: more callbacks
+	virtual int                SetFunctionCallback(const asSFuncPtr &callback, void *obj, int callConv) = 0;
+	virtual void               ClearFunctionCallback() = 0;
+	// Paril: more callbacks]
 	virtual asUINT             GetCallstackSize() const = 0;
 	virtual asIScriptFunction *GetFunction(asUINT stackLevel = 0) = 0;
 	virtual int                GetLineNumber(asUINT stackLevel = 0, int *column = 0, const char **sectionName = 0) = 0;
@@ -1123,9 +1153,11 @@ public:
 
 	// Enums
 	virtual asUINT      GetEnumValueCount() const = 0;
-	virtual const char *GetEnumValueByIndex(asUINT index, int *outValue) const = 0;
+	// [Paril: typed enums
+	virtual const char *GetEnumValueByIndex(asUINT index, asINT64 *outValue) const = 0;
 
-	// Typedef
+	// Typedef & Enum
+	// Paril: typed enums]
 	virtual int GetTypedefTypeId() const = 0;
 
 	// Funcdef
@@ -1176,6 +1208,9 @@ public:
 	virtual bool             IsExplicit() const = 0;
 	virtual bool             IsProperty() const = 0;
 	virtual bool             IsVariadic() const = 0;
+	// [Paril: basic nodiscard
+	virtual bool             IsNoDiscard() const = 0;
+	// Paril: basic nodiscard]
 	virtual asUINT           GetParamCount() const = 0;
 	virtual int              GetParam(asUINT index, int *typeId, asDWORD *flags = 0, const char **name = 0, const char **defaultArg = 0) const = 0;
 	virtual int              GetReturnTypeId(asDWORD *flags = 0) const = 0;

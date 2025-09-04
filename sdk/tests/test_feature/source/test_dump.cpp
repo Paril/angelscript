@@ -186,7 +186,9 @@ void DumpModule(asIScriptModule *mod)
 		// List enum values
 		for( asUINT e = 0; e < ti->GetEnumValueCount(); e++ )
 		{
-			int value;
+			// [Paril: typed enums
+			asINT64 value;
+			// Paril: typed enums]
 			const char *name = ti->GetEnumValueByIndex(e, &value);
 			s << " " << name << " = " << value << endl;
 		}
@@ -255,7 +257,9 @@ void DumpModule(asIScriptModule *mod)
 		// List enum values
 		for( asUINT e = 0; e < ti->GetEnumValueCount(); e++ )
 		{
-			int value;
+			// [Paril: typed enums
+			asINT64 value;
+			// Paril: typed enums]
 			const char *name = ti->GetEnumValueByIndex(e, &value);
 			s << " " << name << " = " << value << endl;
 		}

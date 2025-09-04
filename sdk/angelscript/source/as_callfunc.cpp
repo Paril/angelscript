@@ -788,6 +788,12 @@ int CallSystemFunction(int id, asCContext *context)
 	}
 
 	context->m_callingSystemFunction = descr;
+
+	// [Paril: more callbacks
+    if (context->m_functionCallback)
+        context->CallFunctionCallback(descr, false);
+    // Paril: more callbacks]
+
 	bool cppException = false;
 #ifdef AS_NO_EXCEPTIONS
 #ifndef RETURN_VALUE_MAX_SIZE
@@ -819,6 +825,11 @@ int CallSystemFunction(int id, asCContext *context)
 	}
 #endif
 	context->m_callingSystemFunction = 0;
+
+	// [Paril: more callbacks
+    if (context->m_functionCallback)
+        context->CallFunctionCallback(descr, true);
+	// Paril: more callbacks]
 
 	// Store the returned value in our stack
 	if( (descr->returnType.IsObject() || descr->returnType.IsFuncdef()) && !descr->returnType.IsReference() )

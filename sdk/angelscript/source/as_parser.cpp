@@ -1316,7 +1316,10 @@ void asCParser::ParseMethodAttributes(asCScriptNode *funcNode)
 			IdentifierIs(t1, OVERRIDE_TOKEN) || 
 			IdentifierIs(t1, EXPLICIT_TOKEN) ||
 			IdentifierIs(t1, PROPERTY_TOKEN) ||
-			IdentifierIs(t1, DELETE_TOKEN) )
+			IdentifierIs(t1, DELETE_TOKEN)
+			// [Paril: basic nodiscard
+			|| IdentifierIs(t1, NODISCARD_TOKEN) )
+			// Paril: basic nodiscard]
 			funcNode->AddChildLast(ParseIdentifier());
 		else
 			break;
@@ -1715,10 +1718,13 @@ asCScriptNode *asCParser::ParseExprValue()
 	return node;
 }
 
+// [Paril: support number literals
 // BNF:12: LITERAL       ::= NUMBER | STRING | BITS | 'true' | 'false' | 'null'
-// BNF:17: NUMBER        ::= [0-9]+("."[0-9]+)?                // single token:  includes integers and real numbers, same as C++ 
+// BNF:17: DIGIT         ::= #'[0-9](\'(?=[0-9]))?'             // single token:  like C++14, a digit can contain a ' if a digit comes after it
+// BNF:17: NUMBER        ::= DIGIT+("."DIGIT+)?                 // single token:  includes integers and real numbers, same as C++
 // BNF:17: STRING        ::= '"' ("\". | [^"#x0D#x0A\\])* '"'   // single token:  single quoted ', double quoted ", or heredoc multi-line string """
-// BNF:17: BITS          ::= '0'[bBoOdDxX][0-9A-Fa-f]+         // single token:  binary 0b or 0B, octal 0o or 0O, decimal 0d or 0D, hexadecimal 0x or 0X
+// BNF:17: BITS          ::= '0'[bBoOdDxX][0-9A-Fa-f]+          // single token:  binary 0b or 0B, octal 0o or 0O, decimal 0d or 0D, hexadecimal 0x or 0X
+// Paril: support number literals]
 asCScriptNode *asCParser::ParseConstant()
 {
 	asCScriptNode *node = CreateNode(snConstant);
@@ -2819,7 +2825,9 @@ int asCParser::ParseStatementBlock(asCScriptCode *in_script, asCScriptNode *in_b
 	return 0;
 }
 
-// BNF:1: ENUM          ::= ('shared' | 'external')* 'enum' IDENTIFIER (';' | ('{' IDENTIFIER ('=' EXPR)? (',' IDENTIFIER ('=' EXPR)?)* '}'))
+// [Paril: typed enums
+// BNF:1: ENUM          ::= ('shared' | 'external')* 'enum' IDENTIFIER (':' ('int' | 'int8' | 'int16' | 'int32' | 'int64' | 'uint' | 'uint8' | 'uint16' | 'uint32' | 'uint64'))? (';' | ('{' IDENTIFIER ('=' EXPR)? (',' IDENTIFIER ('=' EXPR)?)* '}'))
+// Paril: typed enums]
 asCScriptNode *asCParser::ParseEnumeration()
 {
 	asCScriptNode *ident;
@@ -2874,9 +2882,38 @@ asCScriptNode *asCParser::ParseEnumeration()
 	ident->UpdateSourcePos(token.pos, token.length);
 	dataType->AddChildLast(ident);
 
-	// External shared declarations are ended with ';'
+	// [Paril: typed enums
 	GetToken(&token);
-	if (token.type == ttEndStatement)
+
+	// Check for underlying type
+	if(token.type == ttColon)
+	{
+		GetToken(&token);
+
+		if(!(
+			(token.type >= ttInt && token.type <= ttInt64) ||
+			(token.type >= ttUInt && token.type <= ttUInt64)
+			))
+		{
+			int tokens[] = { ttInt, ttInt8, ttInt16, ttInt64, ttUInt, ttUInt8, ttUInt16, ttUInt64 };
+			Error(ExpectedOneOf(tokens, 2), &token);
+			Error(InsteadFound(token), &token);
+			return node;
+		}
+
+		ident = CreateNode(snDataType);
+		if(ident == 0) return node;
+
+		ident->SetToken(&token);
+		ident->UpdateSourcePos(token.pos, token.length);
+		dataType->AddChildLast(ident);
+
+		GetToken(&token);
+	}
+
+	// External shared declarations are ended with ';'
+	if(token.type == ttEndStatement)
+	// Paril: typed enums]
 	{
 		RewindTo(&token);
 		node->AddChildLast(ParseToken(ttEndStatement));
@@ -3169,7 +3206,10 @@ bool asCParser::IsFuncDecl(bool isMethod)
 					!IdentifierIs(t1, OVERRIDE_TOKEN) &&
 					!IdentifierIs(t1, EXPLICIT_TOKEN) &&
 					!IdentifierIs(t1, PROPERTY_TOKEN) &&
-					!IdentifierIs(t1, DELETE_TOKEN) )
+					!IdentifierIs(t1, DELETE_TOKEN)
+					// [Paril: basic nodiscard
+					&& !IdentifierIs(t1, NODISCARD_TOKEN) )
+					// Paril: basic nodiscard]
 				{
 					RewindTo(&t1);
 					break;
@@ -3383,7 +3423,9 @@ asCScriptNode *asCParser::ParseInterfaceMethod()
 	return node;
 }
 
-// BNF:1: VIRTPROP      ::= ('private' | 'protected')? TYPE '&'? IDENTIFIER '{' (('get' | 'set') 'const'? FUNCATTR (STATBLOCK | ';'))* '}'
+// [Paril: basic nodiscard
+// BNF:1: VIRTPROP      ::= ('private' | 'protected')? TYPE '&'? IDENTIFIER '{' (('get' | 'set') 'const'? 'nodiscard'? FUNCATTR (STATBLOCK | ';'))* '}'
+// Paril: basic nodiscard]
 asCScriptNode *asCParser::ParseVirtualPropertyDecl(bool isMethod, bool isInterface)
 {
 	asCScriptNode *node = CreateNode(snVirtualProperty);
@@ -3439,6 +3481,10 @@ asCScriptNode *asCParser::ParseVirtualPropertyDecl(bool isMethod, bool isInterfa
 				RewindTo(&t1);
 				if( t1.type == ttConst )
 					accessorNode->AddChildLast(ParseToken(ttConst));
+				// [Paril: basic nodiscard
+				else if( t1.type == ttIdentifier && IdentifierIs(t1, NODISCARD_TOKEN) )
+					accessorNode->AddChildLast(ParseIdentifier());
+				// Paril: basic nodiscard]
 
 				if( !isInterface )
 				{

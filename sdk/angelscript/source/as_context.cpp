@@ -203,6 +203,9 @@ asCContext::asCContext(asCScriptEngine *engine, bool holdRef)
 	m_initialFunction           = 0;
 	m_lineCallback              = false;
 	m_exceptionCallback         = false;
+	// [Paril: more callbacks
+	m_functionCallback          = false;
+	// Paril: more callbacks]
 	m_regs.doProcessSuspend     = false;
 	m_doSuspend                 = false;
 	m_exceptionWillBeCaught     = false;
@@ -2150,6 +2153,11 @@ void asCContext::PrepareScriptFunction()
 		if( m_doSuspend )
 			m_status = asEXECUTION_SUSPENDED;
 	}
+
+	// [Paril: more callbacks
+    if (m_functionCallback)
+        CallFunctionCallback(m_currentFunction, false);
+	// Paril: more callbacks]
 }
 
 void asCContext::CallInterfaceMethod(asCScriptFunction *func)
@@ -2437,6 +2445,11 @@ static const void *const dispatch_table[256] = {
 	// Return to the caller, and remove the arguments from the stack
 	INSTRUCTION(asBC_RET):
 		{
+			// [Paril: more callbacks
+            if (m_functionCallback)
+                CallFunctionCallback(m_currentFunction, true);
+			// Paril: more callbacks]
+
 			// Return if this was the first function, or a nested execution
 			if( m_callStack.GetLength() == 0 ||
 				m_callStack[m_callStack.GetLength() - CALLSTACK_FRAME_SIZE] == 0 )
@@ -4842,6 +4855,12 @@ static const void *const dispatch_table[256] = {
 
 				// Call the method
 				m_callingSystemFunction = m_engine->scriptFunctions[i];
+
+				// [Paril: more callbacks
+                if (m_functionCallback)
+                    CallFunctionCallback(m_callingSystemFunction, false);
+				// Paril: more callbacks]
+
 				void *ptr = 0;
 #ifdef AS_NO_EXCEPTIONS
 				ptr = m_engine->CallObjectMethodRetPtr(obj, arg, m_callingSystemFunction);
@@ -4859,6 +4878,12 @@ static const void *const dispatch_table[256] = {
 					HandleAppException();
 				}
 #endif
+
+				// [Paril: more callbacks
+                if (m_functionCallback)
+                    CallFunctionCallback(m_callingSystemFunction, true);
+				// Paril: more callbacks]
+
 				m_callingSystemFunction = 0;
 				*(asPWORD*)&m_regs.valueRegister = (asPWORD)ptr;
 			}
@@ -5780,6 +5805,48 @@ void asCContext::CallExceptionCallback()
 	else
 		m_engine->CallObjectMethod(m_exceptionCallbackObj, this, &m_exceptionCallbackFunc, 0);
 }
+
+// [Paril: more callbacks
+// interface
+int asCContext::SetFunctionCallback(const asSFuncPtr &callback, void *obj, int callConv)
+{
+	m_functionCallback = true;
+	m_functionCallbackObj = obj;
+	bool isObj = false;
+	if( (unsigned)callConv == asCALL_GENERIC || (unsigned)callConv == asCALL_THISCALL_OBJFIRST || (unsigned)callConv == asCALL_THISCALL_OBJLAST )
+		return asNOT_SUPPORTED;
+	if( (unsigned)callConv >= asCALL_THISCALL )
+	{
+		isObj = true;
+		if( obj == 0 )
+		{
+			m_functionCallback = false;
+			return asINVALID_ARG;
+		}
+	}
+	int r = DetectCallingConvention(isObj, callback, callConv, 0, &m_functionCallbackFunc);
+	if( r < 0 ) m_functionCallback = false;
+	return r;
+}
+
+void asCContext::ClearFunctionCallback()
+{
+	m_functionCallback = false;
+}
+
+void asCContext::CallFunctionCallback(asCScriptFunction *func, bool pop)
+{
+	asSFunctionInfo msg;
+	msg.context = this;
+    msg.function = func;
+    msg.popped = pop;
+
+	if( m_functionCallbackFunc.callConv < ICC_THISCALL )
+		m_engine->CallGlobalFunction(&msg, m_functionCallbackObj, &m_functionCallbackFunc, 0);
+	else
+		m_engine->CallObjectMethod(m_functionCallbackObj, &msg, &m_functionCallbackFunc, 0);
+}
+// Paril: more callbacks]
 
 #ifndef AS_NO_EXCEPTIONS
 // internal

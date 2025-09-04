@@ -66,6 +66,7 @@ string CDebugger::ToString(void *value, asUINT typeId, int expandMembers, asIScr
 	else if( (typeId & asTYPEID_MASK_OBJECT) == 0 )
 	{
 		// The type is an enum
+		// [Paril: typed enums TODO: type size]
 		s << *(asUINT*)value;
 
 		// Check if the value matches one of the defined enums
@@ -74,8 +75,11 @@ string CDebugger::ToString(void *value, asUINT typeId, int expandMembers, asIScr
 			asITypeInfo *t = engine->GetTypeInfoById(typeId);
 			for( int n = t->GetEnumValueCount(); n-- > 0; )
 			{
-				int enumVal;
+				// [Paril: typed enums
+				asINT64 enumVal;
+				// Paril: typed enums]
 				const char *enumName = t->GetEnumValueByIndex(n, &enumVal);
+				// [Paril: typed enums TODO: type size]
 				if( enumVal == *(int*)value )
 				{
 					s << ", " << enumName;

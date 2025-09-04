@@ -362,7 +362,9 @@ asUINT asCEnumType::GetEnumValueCount() const
 }
 
 // interface
-const char *asCEnumType::GetEnumValueByIndex(asUINT index, int *outValue) const
+// [Paril: typed enums
+const char *asCEnumType::GetEnumValueByIndex(asUINT index, asINT64 *outValue) const
+// Paril: typed enums]
 {
 	if (outValue)
 		*outValue = 0;

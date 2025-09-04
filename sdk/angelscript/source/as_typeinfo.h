@@ -119,7 +119,9 @@ public:
 
 	// Enums
 	virtual asUINT      GetEnumValueCount() const { return 0; }
-	virtual const char *GetEnumValueByIndex(asUINT index, int *outValue) const { UNUSED_VAR(index); if (outValue) *outValue = 0; return 0; }
+	// [Paril: typed enums
+	virtual const char *GetEnumValueByIndex(asUINT index, asINT64 *outValue) const { UNUSED_VAR(index); if (outValue) *outValue = 0; return 0; }
+	// Paril: typed enums]
 
 	// Typedef
 	virtual int GetTypedefTypeId() const { return asERROR; }
@@ -186,7 +188,9 @@ protected:
 struct asSEnumValue
 {
 	asCString name;
-	int       value;
+	// [Paril: typed enums
+	asINT64   value;
+	// Paril: typed enums]
 };
 
 class asCEnumType : public asCTypeInfo
@@ -196,9 +200,17 @@ public:
 	~asCEnumType();
 
 	asCArray<asSEnumValue*> enumValues;
+	// [Paril: typed enums
+	asCDataType enumType;
+	asETypeIdFlags enumTypeId;
+	// Paril: typed enums]
 
 	asUINT      GetEnumValueCount() const;
-	const char *GetEnumValueByIndex(asUINT index, int *outValue) const;
+	// [Paril: typed enums
+	const char *GetEnumValueByIndex(asUINT index, asINT64 *outValue) const;
+
+	int GetTypedefTypeId() const { return (int) enumTypeId; }
+	// Paril: typed enums]
 
 protected:
 	asCEnumType() : asCTypeInfo() {}

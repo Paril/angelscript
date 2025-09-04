@@ -1334,7 +1334,11 @@ int asCBuilder::ParseFunctionDeclaration(asCObjectType *objType, const char *dec
 	asCScriptNode *node = parser.GetScriptNode();
 
 	// Determine scope
-	asCScriptNode *n = node->firstChild->next->next;
+	// [Paril: basic nodiscard
+	asCScriptNode *typeNode = node->firstChild;
+
+	asCScriptNode *n = typeNode->next->next;
+	// Paril: basic nodiscard]
 	asCObjectType *parentClass = 0;
 	func->nameSpace = GetNameSpaceFromNode(n, &source, ns, &n, &parentClass);
 	if( func->nameSpace == 0 && parentClass == 0 )
@@ -1368,8 +1372,10 @@ int asCBuilder::ParseFunctionDeclaration(asCObjectType *objType, const char *dec
 	bool autoHandle;
 
 	// Scoped reference types are allowed to use handle when returned from application functions
-	func->returnType = CreateDataTypeFromNode(node->firstChild, &source, objType ? objType->nameSpace : ns, true, parentClass ? parentClass : objType, true, 0, isTemplate ? &func->templateSubTypes : 0);
-	func->returnType = ModifyDataTypeFromNode(func->returnType, node->firstChild->next, &source, 0, &autoHandle);
+	// [Paril: basic nodiscard
+	func->returnType = CreateDataTypeFromNode(typeNode, &source, objType ? objType->nameSpace : ns, true, parentClass ? parentClass : objType, true, 0, isTemplate ? &func->templateSubTypes : 0);
+	func->returnType = ModifyDataTypeFromNode(func->returnType, typeNode->next, &source, 0, &autoHandle);
+	// Paril: basic nodiscard]
 		
 	if( autoHandle && (!func->returnType.IsObjectHandle() || func->returnType.IsReference()) )
 		return asINVALID_DECLARATION;
@@ -1493,6 +1499,15 @@ int asCBuilder::ParseFunctionDeclaration(asCObjectType *objType, const char *dec
 			func->SetExplicit(true);
 		else if( source.TokenEquals(n->tokenPos, n->tokenLength, PROPERTY_TOKEN))
 			func->SetProperty(true);
+		// [Paril: basic nodiscard
+		else if( source.TokenEquals(n->tokenPos, n->tokenLength, NODISCARD_TOKEN))
+		{
+			if ( func->returnType.GetTokenType() == ttVoid )
+				return asINVALID_DECLARATION;
+
+			func->SetNoDiscard(true);
+		}
+		// Paril: basic nodiscard]
 		else
 			return asINVALID_DECLARATION;
 
@@ -2776,10 +2791,15 @@ void asCBuilder::CompileGlobalVariables()
 					// Set the namespace that should be used during the compilation
 					func.nameSpace = gvar->datatype.GetTypeInfo()->nameSpace;
 
-					// Temporarily switch the type of the variable to int so it can be compiled properly
+					// [Paril: typed enums
+					// Temporarily switch the type of the variable to the enum's underlying type so it can be compiled properly
+					asCEnumType *enumType = CastToEnumType(gvar->datatype.GetTypeInfo());
 					asCDataType saveType;
+					// Paril: typed enums]
 					saveType = gvar->datatype;
-					gvar->datatype = asCDataType::CreatePrimitive(ttInt, true);
+					// [Paril: typed enums
+					gvar->datatype = enumType->enumType;
+					// Paril: typed enums]
 					r = comp.CompileGlobalVariable(this, gvar->script, gvar->initializationNode, gvar, &func);
 					gvar->datatype = saveType;
 
@@ -2791,7 +2811,9 @@ void asCBuilder::CompileGlobalVariables()
 					r = 0;
 
 					// When there is no assignment the value is the last + 1
-					int enumVal = 0;
+					// [Paril: typed enums
+					asINT64 enumVal = 0;
+					// Paril: typed enums]
 					asCSymbolTable<sGlobalVariableDescription>::iterator prev_it = it;
 					prev_it--;
 					if( prev_it )
@@ -2799,7 +2821,9 @@ void asCBuilder::CompileGlobalVariables()
 						sGlobalVariableDescription *gvar2 = *prev_it;
 						if(gvar2->datatype == gvar->datatype )
 						{
-							enumVal = int(gvar2->constantValue) + 1;
+							// [Paril: typed enums
+							enumVal = asINT64(gvar2->constantValue) + 1;
+							// Paril: typed enums]
 
 							if( !gvar2->isCompiled )
 							{
@@ -2917,7 +2941,9 @@ void asCBuilder::CompileGlobalVariables()
 					}
 
 					e->name = gvar->name;
-					e->value = int(gvar->constantValue);
+					// [Paril: typed enums
+					e->value = asINT64(gvar->constantValue);
+					// Paril: typed enums]
 
 					enumType->enumValues.PushLast(e);
 				}
@@ -4693,6 +4719,21 @@ int asCBuilder::RegisterEnum(asCScriptNode *node, asCScriptCode *file, asSNameSp
 	asASSERT(snIdentifier == tmp->firstChild->nodeType);
 	name.Assign(&file->code[tmp->firstChild->tokenPos], tmp->firstChild->tokenLength);
 
+	// [Paril: typed enums
+	// Grab the type of the enumeration
+	asCDataType type = asCDataType::CreatePrimitive(ttInt, true);
+
+	asCScriptNode *dataNode = tmp->firstChild->next;
+
+	if (dataNode)
+	{
+		asASSERT(snDataType == dataNode->nodeType);
+		asASSERT((dataNode->tokenType >= ttInt && dataNode->tokenType <= ttInt64) ||
+				 (dataNode->tokenType >= ttUInt && dataNode->tokenType <= ttUInt64));
+		type = asCDataType::CreatePrimitive(dataNode->tokenType, true);
+	}
+	// Paril: typed enums]
+
 	if( isShared )
 	{
 		// Look for a pre-existing shared enum with the same signature
@@ -4703,7 +4744,10 @@ int asCBuilder::RegisterEnum(asCScriptNode *node, asCScriptCode *file, asSNameSp
 				o->IsShared() &&
 				(o->flags & asOBJ_ENUM) &&
 				o->name == name &&
-				o->nameSpace == ns )
+				o->nameSpace == ns
+				// [Paril: typed enums
+				&& CastToEnumType(o)->enumType == type)
+				// Paril: typed enums]
 			{
 				existingSharedType = CastToEnumType(o);
 				break;
@@ -4743,10 +4787,28 @@ int asCBuilder::RegisterEnum(asCScriptNode *node, asCScriptCode *file, asSNameSp
 			st->flags     = asOBJ_ENUM;
 			if( isShared )
 				st->flags |= asOBJ_SHARED;
-			st->size      = 4;
+			// [Paril: typed enums
+			st->size      = type.GetSizeInMemoryBytes();
+			// Paril: typed enums]
 			st->name      = name;
 			st->nameSpace = ns;
 			st->module    = module;
+			// [Paril: typed enums
+			st->enumType  = type;
+
+			switch(type.GetTokenType())
+			{
+			case ttInt: st->enumTypeId = asTYPEID_INT32; break;
+			case ttInt8: st->enumTypeId = asTYPEID_INT8; break;
+			case ttInt16: st->enumTypeId = asTYPEID_INT16; break;
+			case ttInt64: st->enumTypeId = asTYPEID_INT64; break;
+			case ttUInt: st->enumTypeId = asTYPEID_UINT32; break;
+			case ttUInt8: st->enumTypeId = asTYPEID_UINT8; break;
+			case ttUInt16: st->enumTypeId = asTYPEID_UINT16; break;
+			case ttUInt64: st->enumTypeId = asTYPEID_UINT64; break;
+			default: asASSERT(false); break;
+			}
+			// Paril: typed enums]
 		}
 		module->AddEnumType(st);
 
@@ -4765,9 +4827,11 @@ int asCBuilder::RegisterEnum(asCScriptNode *node, asCScriptCode *file, asSNameSp
 		decl->script           = file;
 		decl->typeInfo         = st;
 		namedTypeDeclarations.PushLast(decl);
-
-		asCDataType type = CreateDataTypeFromNode(tmp, file, ns);
-		asASSERT(!type.IsReference());
+		
+		// [Paril: typed enums
+		asCDataType compiledType = CreateDataTypeFromNode(tmp, file, ns);
+		asASSERT(!compiledType.IsReference());
+		// Paril: typed enums]
 
 		// External shared enums must not redeclare the enum values
 		if (isExternal && (tmp->next == 0 || tmp->next->tokenType != ttEndStatement) )
@@ -4817,7 +4881,9 @@ int asCBuilder::RegisterEnum(asCScriptNode *node, asCScriptCode *file, asSNameSp
 			else
 			{
 				// Check for name conflict errors with other values in the enum
-				if( globVariables.GetFirst(ns, name, asCCompGlobVarType(type)) )
+				// [Paril: typed enums
+				if( globVariables.GetFirst(ns, name, asCCompGlobVarType(compiledType)) )
+				// Paril: typed enums]
 				{
 					asCString str;
 					str.Format(TXT_NAME_CONFLICT_s_ALREADY_USED, name.AddressOf());
@@ -4847,7 +4913,9 @@ int asCBuilder::RegisterEnum(asCScriptNode *node, asCScriptCode *file, asSNameSp
 				gvar->declaredAtNode->DisconnectParent();
 				gvar->initializationNode = asnNode;
 				gvar->name               = name;
-				gvar->datatype           = type;
+				// [Paril: typed enums
+				gvar->datatype           = compiledType;
+				// Paril: typed enums]
 				gvar->ns                 = ns;
 				// No need to allocate space on the global memory stack since the values are stored in the asCObjectType
 				// Set the index to a negative to allow compiler to diferentiate from ordinary global var when compiling the initialization
@@ -5011,6 +5079,9 @@ void asCBuilder::GetParsedFunctionDetails(asCScriptNode *node, asCScriptCode *fi
 	funcTraits.SetTrait(asTRAIT_OVERRIDE, false);
 	funcTraits.SetTrait(asTRAIT_EXPLICIT, false);
 	funcTraits.SetTrait(asTRAIT_PROPERTY, false);
+	// [Paril: basic nodiscard
+	funcTraits.SetTrait(asTRAIT_NODISCARD, false);
+	// Paril: basic nodiscard]
 
 	if( n->next->next )
 	{
@@ -5035,6 +5106,19 @@ void asCBuilder::GetParsedFunctionDetails(asCScriptNode *node, asCScriptCode *fi
 				funcTraits.SetTrait(asTRAIT_PROPERTY, true);
 			else if (file->TokenEquals(decorator->tokenPos, decorator->tokenLength, DELETE_TOKEN))
 				funcTraits.SetTrait(asTRAIT_DELETED, true);
+			// [Paril: basic nodiscard
+			else if (file->TokenEquals(decorator->tokenPos, decorator->tokenLength, NODISCARD_TOKEN))
+			{
+				if ( returnType.GetTokenType() == ttVoid )
+				{
+					asCString msg;
+					msg.Format(TXT_NODISCARD_CANT_BE_VOID, name.AddressOf());
+					WriteError(msg.AddressOf(), file, decorator);
+				}
+				else
+					funcTraits.SetTrait(asTRAIT_NODISCARD, true);
+			}
+			// Paril: basic nodiscard]
 			else
 			{
 				asCString msg(&file->code[decorator->tokenPos], decorator->tokenLength);
@@ -5756,6 +5840,10 @@ int asCBuilder::RegisterVirtualProperty(asCScriptNode *node, asCScriptCode *file
 					funcTraits.SetTrait(asTRAIT_FINAL, true);
 				else if (funcNode->tokenType == ttIdentifier && file->TokenEquals(funcNode->tokenPos, funcNode->tokenLength, OVERRIDE_TOKEN))
 					funcTraits.SetTrait(asTRAIT_OVERRIDE, true);
+				// [Paril: basic nodiscard
+				else if (funcNode->tokenType == ttIdentifier && file->TokenEquals(funcNode->tokenPos, funcNode->tokenLength, NODISCARD_TOKEN))
+					funcTraits.SetTrait(asTRAIT_NODISCARD, true);
+				// Paril: basic nodiscard]
 				else
 				{
 					asCString msg(&file->code[funcNode->tokenPos], funcNode->tokenLength);;
@@ -6481,7 +6569,11 @@ asCDataType asCBuilder::CreateDataTypeFromNode(asCScriptNode *node, asCScriptCod
 									return asCDataType::CreatePrimitive(ttInt, false);
 								}
 							}
-							else if (n && n->next && n->next->nodeType == snDataType)
+							else if (n && n->next && n->next->nodeType == snDataType
+								// [Paril: typed enums
+								&& !(node->parent && node->parent->nodeType == snEnum)
+								// Paril: typed enums]
+								)
 							{
 								if (reportError)
 								{
@@ -6810,6 +6902,8 @@ asCDataType asCBuilder::ModifyDataTypeFromNode(const asCDataType &type, asCScrip
 				*inOutFlags = asTM_INOUTREF; // ttInOut
 		}
 
+		// [Paril: safe inout values
+		/*
 		if( !engine->ep.allowUnsafeReferences &&
 			inOutFlags && *inOutFlags == asTM_INOUTREF &&
 			!(dt.GetTypeInfo() && (dt.GetTypeInfo()->flags & asOBJ_TEMPLATE_SUBTYPE)) )
@@ -6819,6 +6913,8 @@ asCDataType asCBuilder::ModifyDataTypeFromNode(const asCDataType &type, asCScrip
 				!((dt.GetTypeInfo()->flags & asOBJ_NOCOUNT) || (CastToObjectType(dt.GetTypeInfo())->beh.addref && CastToObjectType(dt.GetTypeInfo())->beh.release)) )
 				WriteError(TXT_ONLY_OBJECTS_MAY_USE_REF_INOUT, file, node->firstChild);
 		}
+		*/
+		// Paril: safe inout values]
 	}
 
 	if( autoHandle ) *autoHandle = false;
@@ -7026,7 +7122,9 @@ asCFuncdefType *asCBuilder::GetFuncDef(const char *type, asSNameSpace *ns, asCOb
 
 #ifndef AS_NO_COMPILER
 
-int asCBuilder::GetEnumValueFromType(asCEnumType *type, const char *name, asCDataType &outDt, asDWORD &outValue)
+// [Paril: typed enums
+int asCBuilder::GetEnumValueFromType(asCEnumType *type, const char *name, asCDataType &outDt, asINT64 &outValue)
+// Paril: typed enums]
 {
 	if( !type || !(type->flags & asOBJ_ENUM) )
 		return 0;
@@ -7044,7 +7142,9 @@ int asCBuilder::GetEnumValueFromType(asCEnumType *type, const char *name, asCDat
 	return 0;
 }
 
-int asCBuilder::GetEnumValue(const char *name, asCDataType &outDt, asDWORD &outValue, asSNameSpace *ns)
+// [Paril: typed enums
+int asCBuilder::GetEnumValue(const char *name, asCDataType &outDt, asINT64 &outValue, asSNameSpace *ns)
+// Paril: typed enums]
 {
 	bool found = false;
 
